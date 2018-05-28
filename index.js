@@ -6,19 +6,23 @@ let OrbitControls = require('three-orbit-controls')(THREE);
 import WindowResize from 'three-window-resize';
 
 let camera, controls, scene, renderer;
-let container, stats, GUI;
+let container, stats, GUI, gui, spotLight;
 
-let DIMENSIONS = 100;
+let DIMENSIONS = 120;
 
 const SPHERE_RADIUS = 2;
 const SPHERE_MASS = 2.0;
 let amountOfSpheres = 500;
-let balls = []
+let balls = [];
 
 const EYE_CANDY_RADIUS = 8;
 const EYE_CANDY_MASS = 8.0;
 let amountOfEyeCandies = 50;
 let eyeCandies = [];
+
+let ballsSpeed = 2;
+let eyesSpeed = 1;
+
 let animation;
 
 let initGraphics = () => {
@@ -38,22 +42,31 @@ let initGraphics = () => {
 
     //SCENE
     scene = new THREE.Scene();
-    let color = new THREE.Color('#ccffff');
+    let ambient = new THREE.AmbientLight( 0xccffff, 0.4 );
+    scene.add( ambient );
+    // scene.add(createCube());
 
+    spotLight = new THREE.SpotLight( 0xffffff );
+    spotLight.position.set( 0, 500, 0 );
 
-    scene.background = color;
-    scene.add(createCube());
+    spotLight.castShadow = true;
 
-    let light = new THREE.SpotLight( 0xffffff );
-    light.castShadow = true;            // default false
-    scene.add( light );
+    spotLight.shadow.mapSize.width = 1024;
+    spotLight.shadow.mapSize.height = 1024;
 
-//Set up shadow properties for the light
-    light.shadow.mapSize.width = 512;  // default
-    light.shadow.mapSize.height = 512; // default
-    light.shadow.camera.near = 0.5;       // default
-    light.shadow.camera.far = 500      // default
+    spotLight.shadow.camera.near = 500;
+    spotLight.shadow.camera.far = 4000;
+    spotLight.shadow.camera.fov = 30;
+    spotLight.intensity = 1.32;
+    spotLight.angle = 0.8;
+    spotLight.penumbra = 1;
+    spotLight.decay = 1;
 
+    scene.add( spotLight );
+
+    var spotLightHelper = new THREE.SpotLightHelper( spotLight );
+    // scene.add( spotLightHelper );
+    scene.add( createPlane() );
 
     for(let i = 0; i < amountOfSpheres; i++) {
         scene.add(createSphere());
@@ -63,9 +76,14 @@ let initGraphics = () => {
     }
 
     //RENDERER
-    renderer = new THREE.WebGLRenderer({alpha: false});
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+    renderer = new THREE.WebGLRenderer();
+    renderer.setPixelRatio( window.devicePixelRatio );
+    renderer.setSize( window.innerWidth, window.innerHeight );
+    document.body.appendChild( renderer.domElement );
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.gammaInput = true;
+    renderer.gammaOutput = true;
 
     //EVENTS
     WindowResize(renderer, camera);
@@ -82,32 +100,48 @@ let initGraphics = () => {
 
     //GUI
     displayGUI();
+    // buildGui();
 };
 
 // Creating a cube with a set dimension
 let createCube = () => {
     let geometry = new THREE.CubeGeometry(DIMENSIONS, DIMENSIONS, DIMENSIONS);
-    let material = new THREE.MeshBasicMaterial({
+    let material = new THREE.MeshPhongMaterial({
         color: 0xffffff,
         opacity: 0.3,
         transparent: true
     });
     let mesh = new THREE.Mesh(geometry, material);
-    return new THREE.BoxHelper(mesh, 0x000000);
+    return new THREE.BoxHelper(mesh);
+};
+// Create plane
+let createPlane = () => {
+
+    let texture = new THREE.TextureLoader().load("./src/images/diplom.jpg" );
+
+    let material = new THREE.MeshPhongMaterial( { map: texture } );
+    let geometry = new THREE.PlaneBufferGeometry( 2500, 2000 );
+    let mesh = new THREE.Mesh( geometry, material );
+    mesh.position.set( 0, -DIMENSIONS - 30, 0 );
+    mesh.rotation.x = - Math.PI * 0.5;
+    mesh.receiveShadow = true;
+
+    return mesh;
 };
 
 //Creates a sphere with a random position and a random velocity with a set radius
 let createSphere = () => {
     let geometry = new THREE.SphereGeometry(SPHERE_RADIUS, 32, 32);
-    let material = new THREE.MeshBasicMaterial({
-        color: 0x0000ff
+    let material = new THREE.MeshPhongMaterial({
+        color: 0xb11717,
+        dithering: true
     });
     let mesh = new THREE.Mesh(geometry, material);
-    mesh.receiveShadow = true;
+    mesh.castShadow = true;
     mesh.position.set((Math.random() - 0.5) * (DIMENSIONS - geometry.parameters.radius * 2),
         (Math.random() - 0.5) * (DIMENSIONS - geometry.parameters.radius * 2),
         (Math.random() - 0.5) * (DIMENSIONS - geometry.parameters.radius * 2));
-    mesh.velocity = new THREE.Vector3((Math.random() * 2) - 1, (Math.random() * 2) - 1, (Math.random() * 2) - 1);
+    mesh.velocity = new THREE.Vector3((Math.random() * ballsSpeed) - 1, (Math.random() * ballsSpeed) - 1, (Math.random() * ballsSpeed) - 1);
 
     balls.push(mesh);
     return mesh;
@@ -116,15 +150,16 @@ let createSphere = () => {
 //Creates a big sphere with a random position and a random velocity with a set radius
 let eyeCandy = () => {
     let geometry = new THREE.SphereGeometry(EYE_CANDY_RADIUS, 32, 32);
-    let material = new THREE.MeshBasicMaterial({
-        color: 0xff0000
+    let material = new THREE.MeshPhongMaterial({
+        color: 0x07498
     });
     let mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = true;
 
     mesh.position.set((Math.random() - 0.5) * (DIMENSIONS - geometry.parameters.radius * 2),
         (Math.random() - 0.5) * (DIMENSIONS - geometry.parameters.radius * 2),
         (Math.random() - 0.5) * (DIMENSIONS - geometry.parameters.radius * 2));
-    mesh.velocity = new THREE.Vector3(0, 0, 0);
+    mesh.velocity = new THREE.Vector3(eyesSpeed, eyesSpeed, eyesSpeed);
 
     eyeCandies.push(mesh);
     return mesh;
@@ -186,9 +221,6 @@ let checkSphereCollision = (current) => {
 
 let changeBallsCount = () => {
     let countBalls = balls.length;
-    console.log(countBalls);
-    console.log(amountOfSpheres);
-
     for(let i = 0; i < countBalls; i++) {
         balls[i].visible = true;
     }
@@ -199,9 +231,6 @@ let changeBallsCount = () => {
 
 let changeCandysCount = () => {
     let countBalls = eyeCandies.length;
-    console.log(countBalls);
-    console.log(amountOfEyeCandies);
-
     for(let i = 0; i < countBalls; i++) {
         eyeCandies[i].visible = true;
     }
@@ -247,7 +276,11 @@ let displayGUI = () => {
 
         spheresVisible: true,
         spheresColor: "#0000ff",
-        spheresCount: amountOfSpheres
+        spheresCount: amountOfSpheres,
+        animate: true,
+
+        ballsSpeed: ballsSpeed,
+        eyesSpeed: eyesSpeed,
     };
 
     GUI.add(param, 'keys').name("Key Controls");
@@ -255,9 +288,9 @@ let displayGUI = () => {
     //Cube
     let cube = GUI.addFolder("Cube");
 
-    let cubeDimensions = cube.add(param, 'dimensions').name("Count");
+    let cubeDimensions = cube.add(param, 'dimensions', 120, 550).name("Count");
     cubeDimensions.onChange(function (value) {
-        scene.add(createCube());
+        // scene.add(createCube());
         DIMENSIONS = value;
     });
     //Folder for candy controls
@@ -275,10 +308,18 @@ let displayGUI = () => {
         }
     });
 
-    let candyCount = candy.add(param, 'candyCount').name("Count");
+    let candyCount = candy.add(param, 'candyCount', 1, 50).name("Count");
     candyCount.onChange(function (value) {
         amountOfEyeCandies = value;
         changeCandysCount()
+    });
+
+    let candySpeedGui = candy.add(param, 'eyesSpeed', 1, 10).name("Speed");
+    candySpeedGui.onChange(function (value) {
+        eyesSpeed = value;
+        for(let i = 0; i < eyeCandies.length; i++) {
+            eyeCandies[i].velocity = new THREE.Vector3(eyesSpeed, eyesSpeed, eyesSpeed);;
+        }
     });
 
     candy.open();
@@ -288,7 +329,6 @@ let displayGUI = () => {
     let visibleSphere = sphere.add(param, 'spheresVisible').name("Visible");
     visibleSphere.onChange(function (value) {
         for(let i = 0; i < balls.length; i++) {
-            console.log(value);
             balls[i].visible = value;
         }
     });
@@ -299,11 +339,31 @@ let displayGUI = () => {
         }
     });
 
-    let spheresCount = sphere.add(param, 'spheresCount').name("Count");
+    let spheresCount = sphere.add(param, 'spheresCount', 0, 500).name("Count");
     spheresCount.onChange(function (value) {
         amountOfSpheres = value;
         changeBallsCount()
     });
+
+    let ballsSpeedGui = sphere.add(param, 'ballsSpeed', 1, 10).name("Speed");
+    ballsSpeedGui.onChange(function (value) {
+        ballsSpeed = value;
+        for(let i = 0; i < balls.length; i++) {
+            balls[i].velocity = new THREE.Vector3((Math.random() * ballsSpeed) - 1, (Math.random() * ballsSpeed) - 1, (Math.random() * ballsSpeed) - 1);;
+        }
+    });
+
+    let currentAnimation = GUI.addFolder("Animation");
+
+    let motion = currentAnimation.add(param, 'animate').name("Motion")
+    motion.onChange(function (value) {
+        if (value == true) {
+            requestAnimationFrame(animate);
+        } else {
+            cancelAnimationFrame(animation);
+        }
+    });
+
     sphere.open();
 
     GUI.open()
@@ -360,6 +420,43 @@ let render = () => {
     renderer.clear();
     renderer.render(scene, camera);
 };
+
+function buildGui() {
+    gui = new dat.GUI();
+    let params = {
+        'light color': spotLight.color.getHex(),
+        intensity: spotLight.intensity,
+        distance: spotLight.distance,
+        angle: spotLight.angle,
+        penumbra: spotLight.penumbra,
+        decay: spotLight.decay
+    }
+    gui.addColor( params, 'light color' ).onChange( function ( val ) {
+        spotLight.color.setHex( val );
+        render();
+    } );
+    gui.add( params, 'intensity', 0, 2 ).onChange( function ( val ) {
+        spotLight.intensity = val;
+        render();
+    } );
+    gui.add( params, 'distance', 50, 200 ).onChange( function ( val ) {
+        spotLight.distance = val;
+        render();
+    } );
+    gui.add( params, 'angle', 0, Math.PI / 3 ).onChange( function ( val ) {
+        spotLight.angle = val;
+        render();
+    } );
+    gui.add( params, 'penumbra', 0, 1 ).onChange( function ( val ) {
+        spotLight.penumbra = val;
+        render();
+    } );
+    gui.add( params, 'decay', 1, 2 ).onChange( function ( val ) {
+        spotLight.decay = val;
+        render();
+    } );
+    gui.open();
+}
 
 if(Detector.webgl) {
     initGraphics();
